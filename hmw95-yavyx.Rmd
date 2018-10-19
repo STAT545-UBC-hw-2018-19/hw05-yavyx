@@ -1,0 +1,217 @@
+---
+title: "hmw05 - yavyx"
+author: "Javier Castillo-Arnemann"
+date: "October 19, 2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+First we start by loading the necessary packages.
+
+```{r}
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(plotly))
+library(gapminder)
+library(knitr)
+```
+
+##Part 1: Factor Management
+We will first check the structure of the `gapminder` dataset to check that we have factors in it.
+```{r}
+str(gapminder)
+```
+
+As we can see, there are 2 factors: `country` with 142 levels, and `continent` with 5 levels.
+
+We will now filter Oceania out of the dataset and see if the levels change.
+```{r}
+gapm_wo_oceania <- gapminder %>%
+  filter(continent != "Oceania")
+str(gapm_wo_oceania)
+```
+
+Even though Oceania' countries are not in the new dataset, it still retains the levels. We can drop these levels with base R, or the `forcats` package.
+```{r}
+gapm_wo_oceania %>%
+  droplevels() %>%
+  str()
+
+gapm_wo_oceania %>%
+  mutate(continent = fct_drop(continent)) %>%
+  mutate(country = fct_drop(country)) %>%
+  str()
+```
+As we can see, we can drop all levels with base R, and with `forcats`, we can drop individual ones. However, the base R function has an `except` argument that lets us specify which factor we don't want to drop. 
+
+```{r}
+gapm_wo_oceania %>%
+  droplevels(except = 2) %>%  #Indicate column to keep
+  str()
+```
+
+Here we see that only the empty `country` factors were dropped, beacuse the second factor (continent) was specified in the `except` parameter.
+
+We can also reorder the factor other than alfabetically (which is the default). We'll work with American countries for this.
+
+When we plot some information about the countries, they are ordered alphabetically.
+```{r}
+gap_america <- gapminder%>%
+  filter(continent == "Americas") %>%
+  droplevels()
+
+ggplot(gap_america) +
+    geom_bar(aes(country, lifeExp/n_distinct(gapminder$year)), stat = "identity", fill = "steel blue") + #tell geom_bar to use the y aesthetic instead of the bar. Divide by 12 to get correct lifeExp values
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + #change x label angles to be more readable
+    labs(title = "Life Expectancy in the Americas",
+         x = "Country", y = "Life Expectancy")
+```
+
+We can change this by reordering the countries factor by the population in each country, for example
+```{r}
+gap_america %>%
+  mutate(country = fct_reorder(country, pop)) %>% #Reorder factor
+  ggplot() +
+    geom_bar(aes(country, lifeExp/n_distinct(gapminder$year)), stat = "identity", fill = "steel blue") + #tell geom_bar to use the y aesthetic instead of the bar. Divide by 12 to get correct lifeExp values
+    theme(axis.text.x = element_text(angle = 60, hjust = 1)) + #change x label angles to be more readable
+    labs(title = "Life Expectancy in the Americas (ordered by population)",
+         x = "Country", y = "Life Expectancy")
+```
+
+We can see that in general, there is not a strong relationship between population and life expectancies in the Americas.
+
+Let's see if by using `arrange()` we get similar results.
+
+```{r}
+gap_america_arr <- gap_america %>%
+  droplevels() %>%
+  group_by(country) %>%
+  mutate(mean_pop = mean(pop)) %>%
+  arrange(mean_pop) #Arrange by mean poplutation some all country measurements stay
+
+kable(head(gap_america_arr, 15))
+
+levels(gap_america_arr$country)
+```
+
+Here we see that the dataset is arranged by population too, but with the `levels` function we can see that the factor is still ordered alfabetically, so when we plot it we will see the same.
+```{r}
+ggplot(gap_america_arr) +
+    geom_bar(aes(country, lifeExp/n_distinct(gapminder$year)), stat = "identity", fill = "steel blue") + #tell geom_bar to use the y aesthetic instead of the bar. Divide by 12 to get correct lifeExp values
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + #change x label angles to be more readable
+    labs(title = "Life Expectancy in the Americas",
+         x = "Country", y = "Life Expectancy")
+```
+
+Looking in the [R documentation](https://www.rdocumentation.org/packages/dplyr/versions/0.7.6/topics/arrange), we can see that `arrange()` only reorders the rows of a dataframe, so it will never change the factor levels order which is what we are looking for.
+
+##Part 2: File I/O
+We'll do some experimenting with reading in data, modifying it, and seeing if the changes remain after saving it to a new file and reading it in again.
+
+First, let's filter the gapminder dataset to only have information from 2007 and save that in a csv file, and read it back in to see if it keeps the factors' order.
+```{r}
+gapminder_2007 <- gapminder %>%
+  filter(year == 2007)
+str(gapminder_2007)
+
+write_csv(gapminder_2007, "gapminder2007.csv") 
+
+gapminder_2007_2 <- read_csv("gapminder2007.csv")
+str(gapminder_2007_2)
+```
+
+We can see that `read_csv()` does not coerce character values into factores, like the base R `read.csv` function does. Therefore, we lose the factors' information and would have to manually convert the variables factors as follows.
+```{r}
+gapminder_2007_2$country <- factor(gapminder_2007_2$country)
+gapminder_2007_2$continent<- factor(gapminder_2007_2$continent)
+
+str(gapminder_2007_2)
+```
+
+Let's check if we can keep the `arrange()` does survive the writing and reading steps.
+
+```{r}
+gapminder_2007_arr <- gapminder_2007 %>%
+  arrange(continent)
+
+head(gapminder_2007_arr)
+
+write_csv(gapminder_2007_arr, "gapminder2007_arr.csv")
+
+gapminder_2007_arr_2 <- read_csv("gapminder2007_arr.csv")
+
+head(gapminder_2007_arr_2)
+```
+
+This change does survive the writing/reading steps.
+
+Finally, we can check if after reordering a factor we would get the same ordering with `read.csv()` that does coerce character vectors into factors.
+```{r}
+gapminder_2007 <- gapminder_2007 %>%
+  mutate(country = fct_reorder(country, pop))
+
+str(gapminder_2007)
+
+write_csv(gapminder_2007, "gapminder2007_factors.csv") 
+
+gapminder_2007_2 <- read.csv("gapminder2007_factors.csv")
+
+str(gapminder_2007_2)
+
+```
+
+Our new dataset does have the factors as we predicted, but the order was not kept. This is probably because `.csv` files don't keep the factor information, the are just plain text files and there is no way that R can recover this information. R assigns the factors after reading in the data.
+
+##Part 3: Visualization design
+We'll modify one of the life expectancy figures from part 1.
+
+First attempt:
+```{r}
+ggplot(gap_america) +
+    geom_bar(aes(country, lifeExp/n_distinct(gapminder$year)), stat = "identity", fill = "steel blue") + #tell geom_bar to use the y aesthetic instead of the bar. Divide by 12 to get correct lifeExp values
+    theme(axis.text.x = element_text(angle = 45, hjust = 1)) + #change x label angles to be more readable
+    labs(title = "Life Expectancy in the Americas",
+         x = "Country", y = "Life Expectancy")
+```
+
+New version:
+```{r}
+final_plot <- ggplot(gap_america) +
+    geom_bar(aes(country, lifeExp/n_distinct(gapminder$year), fill = lifeExp > mean(lifeExp)), stat = "identity") + #tell geom_bar to use the y aesthetic instead of the bar. Divide by 12 to get correct lifeExp values. Color bars according to times lifeExp was above the mean
+    theme_bw() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1),
+          panel.grid.major = element_blank()) + #change x label angles to be more readable
+    labs(title = "Life Expectancy in the Americas",
+         x = "Country", y = "Life Expectancy") +
+    scale_y_continuous(breaks = 1:10 * 10) + #add y labels every 10 years
+    scale_fill_discrete(name = "Life Expectancy",
+                         breaks = c("FALSE", "TRUE"),
+                         labels = c("< 65.7", "> 65.7")) #edit legend values
+
+final_plot
+```
+
+Finally, we'll nake a 3D plotly that shows similar information as the previous plot, and save it.
+```{r}
+plot_ly(gap_america, 
+        x = ~country, 
+        y = ~lifeExp, 
+        z = ~year,
+        type = "scatter3d",
+        mode = "markers",
+        opacity = 0.8,
+        color = ~ lifeExp > mean(lifeExp)) %>%
+  htmlwidgets::saveWidget("plotly.html")
+
+```
+
+##Part 4: Writing figures to file
+We will save the last bar plot to a file using `ggsave`.
+
+```{r}
+ggsave("lifeExp_america.png", plot = final_plot, width = 18, height = 8, units = "cm")
+```
+
+
