@@ -1,7 +1,7 @@
 # hw05-yavyx
 hw05-yavyx created by GitHub Classroom
 
-This is a repository containing the 3rd assignment of the **STAT 545** course. The course main page can be found [here](http://stat545.com/). The instructions for this assignment can be accesed [here](http://stat545.com/Classroom/assignments/hw05/hw05.html)
+This is a repository containing the 5th assignment of the **STAT 545** course. The course main page can be found [here](http://stat545.com/). The instructions for this assignment can be accesed [here](http://stat545.com/Classroom/assignments/hw05/hw05.html)
 
 Files
 -----
